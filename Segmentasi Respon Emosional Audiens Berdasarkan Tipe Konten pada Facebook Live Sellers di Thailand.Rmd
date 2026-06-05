@@ -1,0 +1,447 @@
+---
+title: "Segmentasi Respon Emosional Audiens Berdasarkan Tipe Konten pada Facebook Live Sellers in Thailand"
+date: "2026-06-03"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: flatly
+    highlight: tango
+    code_folding: show
+---
+
+```{=html}
+<style>
+body {
+text-align: justify;
+}
+</style>
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+# **Deskripsi Data**
+
+Dataset yang digunakan pada analisis clustering ini merupakan dataset Facebook Live Sellers di Thailand yang diperoleh dari [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/560/seoul+bike+sharing+demand). Tujuan utama dari clustering ini adalah untuk memetakan karakteristik dan pola tersembunyi dari respons emosional penonton, yaitu *Love, Wow, Haha, Sad,* dan *Angry*, terhadap tipe konten para live seller.
+
+Reaksi *Like* sering kali diartikan sebagai reaksi yang bersifat netral dan tidak mencerminkan kedalaman ekspresi emosional atau sentimen spesifik dari audiens terhadap isi tayangan. Pada platform Facebook, tombol *like* umumnya ditekan oleh pengguna hanya sebagai bentuk bahwa mereka telah melihat, menyukai secara umum, atau sekadar lewat di postingan tersebut (*passive engagement*). Oleh karena itu, dalam analisis clustering ini, frekuensi *like* sengaja dipisahkan dari kelompok respons emosional aktif lainnya (seperti *Love, Wow, Haha, Sad,* dan *Angry*).
+
+Melalui pendekatan algoritma K-Means dan Simple K-Medoids (SKM), analisis ini ditujukan untuk menguji konsistensi serta performa terbaik dari kedua metode tersebut dalam mengelompokkan tipe konten secara objektif.
+
+```{r load packages & import data}
+# Load Library
+library(tidyverse)
+library(lubridate)
+library(psych)
+library(ggcorrplot)
+library(factoextra)
+library(cluster)
+library(kmed)
+library(clusterCrit)
+library(gridExtra)
+
+# Import Data  
+setwd("D:/Semester 4/Statistical Machine Learning/Project")
+data_fb <- read.csv("Live_20210128.csv", 
+                    sep = ",",
+                    stringsAsFactors = FALSE)
+```
+
+```{r deskripsi data}
+# Jumlah Baris
+nrow(data_fb)
+
+# Jumlah Kolom
+ncol(data_fb)
+
+# Dimensi Data
+dim(data_fb)
+
+# Nama Variabel
+names(data_fb)
+
+# Struktur Data
+str(data_fb)
+
+# Analisis Missing Value
+colSums(is.na(data_fb)) # Cek missing value
+data_fb <- data_fb %>%
+  select(-c(Column1, Column2, Column3, Column4)) # Hapus missing value
+
+# Analisis Data Duplicate
+sum(duplicated(data_fb))
+```
+
+Dataset Facebook Live Sellers in Thailand terdiri atas 7050 postingan dengan 16 variabel. Sehingga, dimensi data yang terbentuk, yaitu 7050 $\times$ 16. Hasil pemeriksaan data menunjukkan bahwa empat variabel, yaitu Column1, Column2, Column3, dan Column4, seluruhnya berisi nilai kosong (missing) sehingga dihapus dari analisis. Selain itu, hasil pemeriksaan juga menunjukkan bahwa tidak ditemukan data duplikat sehingga seluruh data yang tersisa dapat digunakan untuk proses analisis.
+
+Adapun struktur lengkap data disajikan secara rinci pada tabel berikut:
+
+| No | Nama Variabel | Struktur | Keterangan |
+|-----------------|-----------------|-----------------|---------------------|
+| 1\. | status_id | Integer | Kode *ID* untuk setiap postingan tayangan *live*. |
+| 2\. | status_type | Character | Jenis format konten yang diunggah (*video, photo, link,* dan *status*). |
+| 3\. | status_published | Character | Rekam jejak tanggal dan jam ketika tayangan *live* tersebut diterbitkan. |
+| 4\. | num_reaction | Integer | Akumulasi total seluruh interaksi yang diberikan penonton pada postingan. |
+| 5\. | num_comments | Integer | Jumlah total komentar yang ditulis oleh penonton selama tayangan berlangsung. |
+| 6\. | num_shares | Integer | Frekuensi berapa kali tayangan *live* tersebut dibagikan ulang oleh penonton. |
+| 7\. | num_likes | Integer | Frekuensi reaksi *Like* yang diterima dari penonton. |
+| 8\. | num_loves | Integer | Frekuensi reaksi *Love* yang diterima dari penonton. |
+| 9\. | num_wow | Integer | Frekuensi reaksi *Wow* yang diterima dari penonton. |
+| 10\. | num_haha | Integer | Frekuensi reaksi *Haha* yang diterima dari penonton. |
+| 11\. | num_sads | Integer | Frekuensi reaksi *Sad* yang diterima dari penonton. |
+| 12\. | num_angrys | Integer | Frekuensi reaksi *Angry* yang diterima dari penonton. |
+
+# **Analisis Deskriptif**
+
+Untuk mengetahui karakteristik pemusatan dan penyebaran data, dilakukan analisis deskriptif menggunakan fungsi `describe()`.
+
+```{r analisis deskriptif}
+# Statistik Deskriptif
+describe(data_fb[, sapply(data_fb, is.numeric)])
+```
+
+Statistik deskriptif menunjukkan bahwa variabel engagement seperti jumlah reaksi, komentar, dan bagikan memiliki variasi yang sangat tinggi. Rata-rata jumlah reaksi adalah 230.12 dengan median hanya 59.5, sedangkan rata-rata jumlah komentar sebesar 224.36 dengan median hanya 4 komentar. Perbedaan yang cukup besar antara rata-rata dan median mengindikasikan bahwa sebagian besar postingan memperoleh engagement yang relatif rendah, sementara hanya sejumlah kecil postingan yang memperoleh engagement sangat tinggi. Hal ini diperkuat oleh nilai skewness yang tinggi pada seluruh variabel reaksi, yang menunjukkan distribusi data menceng ke kanan (*right skewed*).
+
+Sementara itu, hasil analisis deskriptif menunjukkan bahwa seluruh variabel reaksi emosional memiliki nilai rata-rata yang relatif rendah dibandingkan jumlah reaksi keseluruhan. Rata-rata jumlah reaksi *Love* sebesar 12.73, *Wow* sebesar 1.29, *Haha* sebesar 0.70, *Sad* sebesar 0.24, dan *Angry* sebesar 0.11.
+
+Nilai median yang sama dengan nol menunjukkan bahwa lebih dari separuh postingan tidak memperoleh reaksi emosional tertentu. Kondisi ini mengindikasikan bahwa sebagian besar pengguna Facebook hanya memberikan reaksi umum seperti *Like* dan jarang menggunakan fitur reaksi emosional lainnya. Dengan kata lain, keterlibatan emosional audiens masih tergolong rendah pada sebagian besar postingan.
+
+Selain itu, nilai maksimum yang jauh lebih besar dibandingkan rata-rata menunjukkan adanya beberapa postingan yang mampu memicu respons emosional sangat tinggi dari audiens. Hal ini menunjukkan bahwa terdapat sejumlah kecil postingan yang sangat menarik perhatian audiens dan berhasil memunculkan respons emosional secara masif.
+
+Berdasarkan nilai skewness, seluruh variabel reaksi emosional memiliki distribusi yang sangat menceng ke kanan (*right skewed*), di mana nilai skewness untuk *Love* sebesar 6.00, *Wow* sebesar 18.24, *Haha* sebesar 20.30, *Sad* sebesar 17.57, dan *Angry* sebesar 19.50. Nilai skewness yang jauh lebih besar dari nol menunjukkan bahwa sebagian besar postingan memiliki jumlah reaksi emosional yang rendah, sedangkan hanya sedikit postingan yang memperoleh jumlah reaksi emosional sangat tinggi.
+
+Jika dibandingkan antarjenis emosi, reaksi *Love* merupakan reaksi emosional yang paling sering diberikan oleh audiens. Hal ini terlihat dari rata-rata jumlah reaksi *Love* yang jauh lebih tinggi dibandingkan reaksi lainnya. Temuan tersebut mengindikasikan bahwa audiens Facebook Live Sellers di Thailand cenderung memberikan respons positif terhadap konten yang ditampilkan. Sebaliknya, reaksi sad dan angry memiliki rata-rata paling rendah, yang menunjukkan bahwa konten yang dipublikasikan relatif jarang memunculkan respons emosional negatif dari pengguna.
+
+```{r}
+# Postingan Tanpa Reaksi
+not_specific <- data_fb %>%
+  summarise(
+    Love  = sum(num_loves == 0),
+    Wow   = sum(num_wows == 0),
+    Haha  = sum(num_hahas == 0),
+    Sad   = sum(num_sads == 0),
+    Angry = sum(num_angrys == 0)
+  ) %>%
+  # Mengubah bentuk data menjadi memanjang (long)
+  pivot_longer(cols = everything(), names_to = "Jenis_Emosi", values_to = "Jumlah_Postingan")
+
+# Jumlah Postingan Tanpa Reaksi Spesifik
+total <- data_fb %>% 
+  summarise(
+    sum(num_loves + num_wows + num_hahas + num_sads + num_angrys == 0)
+  )
+  
+# Visualisasi Jumlah Postingan Tanpa Reaksi Spesifik
+ggplot(not_specific, aes(x = reorder(Jenis_Emosi, -Jumlah_Postingan), y = Jumlah_Postingan, fill = Jenis_Emosi)) +
+  geom_bar(stat = "identity", color = "black", show.legend = FALSE) +
+  geom_text(aes(label = Jumlah_Postingan), vjust = -0.5, fontface = "bold", size = 4) +
+  scale_fill_brewer(palette = "Pastel1") +
+  labs(
+    title = "Jumlah Postingan Tanpa Reaksi Emosional",
+    subtitle = paste("Total data awal:", nrow(data_fb), "postingan | Postingan Tanpa Reaksi Spesifik:", total, "postingan"),
+    x = "Jenis Reaksi Emosi",
+    y = "Jumlah Postingan (Bernilai 0)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 11),
+    axis.title = element_text(face = "bold", size = 12)
+  )
+```
+
+Dari grafik didapat bahwa dari 7050 data awal, terdapat 3956 postingan yang tidak memiliki reaksi emosional spesifik sama sekali. Reaksi yang paling sering bernilai 0 adalah *Angry* (6627 postingan), diikuti *Sad* (6443 postingan), *Haha* (5916 postingan), *Wow* (5308 postingan), dan *Love* (4230 postingan). Hal ini memperkuat dugaan bahwa keterlibatan emosional audiens masih tergolong rendah pada sebagian besar postingan.
+
+# **Pra-Proses Data**
+
+Berdasarkan analisis deskriptif, terdapat sejumlah postingan yang memiliki nilai 0 pada kelima variabel emosi (*Love*, *Wow*, *Haha*, *Sad*, *Angry*). Postingan tersebut tidak diikutkan dalam analisis clustering karena secara matematis akan menyebabkan error Division by Zero (NaN) saat ditransformasikan ke dalam bentuk proporsi. Hal ini dilakukan agar algoritma K-Means dan K-Medois mengelompokkan karakteristik postingan yang memiliki keterikatan emosional aktif.
+
+```{r pra-proses}
+# Data Cleaning & Feature Engineering
+data_clean <- data_fb %>%
+  
+  # Hitung total emosi
+  mutate(total_emosi = num_loves + num_wows + num_hahas + num_sads + num_angrys) %>%
+  
+  # Filter data
+  filter(!is.na(total_emosi) & total_emosi > 0) %>%
+  
+  # Hitung persentase proporsi emosi
+  mutate(
+    pct_love  = num_loves / total_emosi,
+    pct_wow   = num_wows / total_emosi,
+    pct_haha  = num_hahas / total_emosi,
+    pct_sad   = num_sads / total_emosi,
+    pct_angry = num_angrys / total_emosi
+  ) %>%
+  
+  # Hapus kolom asli yang sudah tidak digunakan
+  select(-c(num_loves, num_wows, num_hahas, num_sads, num_angrys))
+
+# Cek Hasil Setelah Data Cleaning
+cat("Dimensi Data Bersih:", dim(data_clean)[1], "x", dim(data_clean)[2], "\n")
+glimpse(data_clean)
+```
+
+Setelah memfilter postingan dan hanya menyisakan postingan yang memiliki minimal 1 reaksi emosional, diperoleh 3094 baris data bersih untuk proses clustering.
+
+```{r}
+# Input Data untuk Clustering
+data_input <- data_clean %>%
+  select(pct_love, pct_wow, pct_haha, pct_sad, pct_angry)
+```
+
+Analisis korelasi dilakukan untuk mengetahui hubungan antar reaksi emosional pada postingan Facebook Live Sellers.
+
+```{r}
+
+# Hitung Matriks Korelasi
+cor_matrix <- cor(data_input, use = "complete.obs")
+
+# Heatmap Korelasi
+ggcorrplot(
+  cor_matrix,
+  method = "square",
+  type = "lower",
+  lab = TRUE,
+  lab_size = 3,
+  colors = c("#D9E4EC", "white", "#5B84B1"),
+  title = "Heatmap Korelasi Antar Variabel",
+  ggtheme = theme_minimal()
+)
+
+# Scaling (Standardisasi)
+data_scaled <- scale(data_input)
+```
+
+Hasil heatmap korelasi menunjukkan bahwa sebagian besar variabel memiliki hubungan negatif. Korelasi negatif terkuat ditemukan antara reaksi *Love* dan *Wow*, yaitu sebesar -0.76. Hal ini menunjukkan bahwa postingan yang didominasi reaksi *Love* cenderung memiliki proporsi reaksi *Wow* yang lebih rendah. Sementaar itu, hubungan positif terlihat *Angry* dengan *Haha* (0.02) serta *Angry* dengan *Sad* (0.01).
+
+# **K-Means Clustering**
+
+K-Means merupakan algoritma pengelompokan non-hierarki yang paling populer. Algoritma K-Means dipilih karena memiliki kecepatan komputasi yang cukup cepat. Untuk menentukan jumlah cluster optimal, dilakukan pengujian melalui pendekatan Elbow Method.
+
+```{r}
+# Menentukan k Optimal dengan Elbow Method
+set.seed(27) # Agar hasil clustering konsisten
+fviz_nbclust(data_scaled, kmeans, method = "wss") +
+  labs(title = "Metode Elbow untuk Menentukan K Optimal")
+```
+
+Berdasarkan grafik tersebut, terlihat bahwa titik meluncur turun dengan sangat konsisten dan tajam. Namun, setelah $k = 5$, grafik langsung patah/berubah arah dan cenderung horizontal serta menjadi sangat landai. Hal ini menunjukkan bahwa $k = 5$ menjadi jumlah cluster paling optimal untuk K-Means Clustering.
+
+```{r k-means clustering}
+# Menjalankan K-Means Clustering
+set.seed(127)
+hasil_kmeans <- kmeans(data_scaled, centers = 5)
+
+# Menampilakan Hasil Clustering
+table(hasil_kmeans$cluster)
+prop.table(table(hasil_kmeans$cluster))*100
+
+# Evaluasi Internal K-Means: Silhouette Coefficient
+sil_kmeans <- silhouette(hasil_kmeans$cluster, dist(data_scaled))
+info_sil <- summary(sil_kmeans)
+
+cat("Rata-rata Silhouette Width K-Means:", info_sil$avg.width, "\n")
+cat("Nilai Silhouette per Klaster:\n")
+print(info_sil$clus.avg.widths)
+
+# Visualisasi Silhouette K-Means
+fviz_silhouette(sil_kmeans) +
+  labs(title = "Grafik Silhouette untuk Evaluasi K-Means", 
+       subtitle = paste("Rata-rata Silhouette Width:", round(info_sil$avg.width, 4))) +
+  theme_minimal()
+```
+
+Hasil clustering menunjukkan bahwa Cluster 3 merupakan kelompok terbesar dengan 2302 postingan (74.40%), diikuti Cluster 2 sebanyak 580 postingan (18.75%), Cluster 1 sebanyak 102 postingan (3.30%), Cluster 4 sebanyak 87 postingan (2.81%), dan Cluster 5 sebanyak 23 postingan (0.74%).
+
+Evaluasi kualitas cluster dilakukan menggunakan Silhouette Coefficient. Nilai silhouette berada pada rentang $[-1, 1]$, di mana nilai yang mendekati 1 menunjukkan bahwa objek dalam suatu cluster memiliki kemiripan yang tinggi dengan anggota cluster yang sama dan memiliki perbedaan yang jelas dengan cluster lainnya. Sedangkan nilai yang mendekati −1 menunjukkan bahwa objek lebih dekat dengan cluster lain sehingga pemisahan cluster kurang baik.
+
+Berdasarkan hasil evaluasi didapat nilai rata-rata silhouette sebesar 0.6818, di mana Cluster 3 memiliki kualitas terbaik dengan nilai sebesar 0.74. Hal ini menunjukkan bahwa anggota dalam cluster tersebut sangat homogen dan terpisah dengan jelas dari cluster lainnya. Sementara itu, Cluster 2 memiliki nilai yang paling rendah, yaitu sebesar 0.50, mengindikasikan bahwa beberapa anggota cluster memiliki karakteristik yang relatif mirip dengan cluster lain.
+
+# **Simple K-Medoids (SKM)**
+
+Berdasarkan hasil analisis deskriptif yang dilakukan sebelumnya, dataset reaksi emosional audiens memiliki nilai *skewness* dan *kurtosis* yang sangat ekstrem. Algoritma K-Means sangat sensitif terhadap data pencilan karena pusat cluster berbasis rata-rata. Oleh karena itu, dipilih algoritma K-Medoids sebagai metode pembanding yang bersifat *robust* terhadap pencilan.
+
+Berbeda dengan K-Means, algoritma K-Medoids menetapkan pusat kelompoknya berdasarkan objek riil aktual (*medoid*) yang terletak paling pusat pada suatu kelompok, bukan berdasarkan nilai rata-rata imajiner. Akan tetapi, algoritma K-Medoids biasa seperti *Partitioning Around Medoid* (PAM) terkenal sangat lambat jika diterapkan pada data besar. Oleh karena itu, digunakan pendekatan Simple K-Medoid (SKM) dari paket `kmed` untuk mengatasi kelemahan tersebut.
+
+Untuk menentukan jumlah cluster optimal, dilakukan pengujian dengan menggunakan metodel Silhouette.
+
+```{r k-medoids clustering}
+# Menghitung matriks jarak antar objek data (Euclidean Distance)
+matriks_jarak <- dist(data_scaled)
+
+# Menentukan nilai k optimal
+set.seed(27)
+fviz_nbclust(data_scaled, pam, method = "silhouette") +
+  labs(title = "Metode Silhouette untuk Menentukan k Optimal K-Medoids")
+
+# Menjalankan SKM Clustering
+set.seed(27)
+hasil_kmed <- skm(matriks_jarak, ncluster = 4)
+
+# Menampilakan hasil clustering
+table(hasil_kmed$cluster)
+prop.table(table(hasil_kmed$cluster))*100
+
+# Evaluasi Internal K-Means: Silhouette Coefficient
+sil_kmed <- silhouette(hasil_kmed$cluster, dist(data_scaled))
+info_sil <- summary(sil_kmed)
+
+cat("Rata-rata Silhouette Width K-Medoid:", info_sil$avg.width, "\n")
+cat("Nilai Silhouette per Klaster:\n")
+print(info_sil$clus.avg.widths)
+
+# Visualisasi Silhouette K-Medoid
+fviz_silhouette(sil_kmed) +
+  labs(title = "Grafik Silhouette untuk Evaluasi K-Medoid", 
+       subtitle = paste("Rata-rata Silhouette Width:", round(info_sil$avg.width, 4))) +
+  theme_minimal()
+```
+
+Hasil clustering menunjukkan bahwa Cluster 3 merupakan cluster terbesar dengan 1972 postingan (63.74%), diikuti Cluster 1 sebanyak 770 postingan (24.89%), Cluster 4 sebanyak 258 postingan (8.34%), dan Cluster 2 sebanyak 94 postingan (3.04%). Distribusi ini menunjukkan bahwa sebagian besar postingan terkonsentrasi pada satu kelompok dengan karakteristik emosi yang serupa.
+
+Pada K-Medoids clustering juga digunakan valuasi kualitas Silhouette Coefficient untuk mengevaluasi cluster. Berdasarkan hasil evaluasi didapat nilai rata-rata silhouette sebesar 0.6818, di mana Cluster 3 memiliki kualitas terbaik dengan nilai sebesar 0.74. Hal ini menunjukkan bahwa anggota dalam cluster tersebut sangat homogen dan terpisah dengan jelas dari cluster lainnya. Sementara itu, Cluster 2 memiliki nilai yang paling rendah, yaitu sebesar 0.50, mengindikasikan bahwa beberapa anggota cluster memiliki karakteristik yang relatif mirip dengan cluster lain.
+
+# **Profiling dan Komparasi Model**
+
+Profiling dan komparasi model dilakukan untuk memahami karakteristik setiap cluster yang terbentuk serta membandingkan kinerja metode clustering yang digunakan.
+
+```{r profiling}
+# Menggabungkan Hasil Kedua Metode Ke Dalam Dataset Utama
+data_final <- data_clean %>%
+  mutate(
+    Cluster_KMeans = as.factor(hasil_kmeans$cluster),
+    Cluster_KMedoid  = as.factor(hasil_kmed$cluster)
+  )
+
+# Profiling Karakteristik Cluster Emosi Berdasarkan K-Means 
+profil_emosi_kmeans <- data_final %>%
+  # Mengelompokkan data berdasarkan cluster
+  group_by(Cluster_KMeans) %>%
+  
+  # Hitung rata-rata persentase kelima variabel emosi
+  summarise(
+    avg_love  = mean(pct_love),
+    avg_wow   = mean(pct_wow),
+    avg_haha  = mean(pct_haha),
+    avg_sad   = mean(pct_sad),
+    avg_angry = mean(pct_angry),
+    
+    # Menghitung frekuensi postingan yang tergolong di setiap cluster
+    Jumlah_Postingan = n() 
+  )
+
+# Menampilkan Hasil Cluster K-Means
+print(profil_emosi_kmeans)
+```
+
+Berdasarkan hasil tersebut karakteristik setiap cluster yang dihasilkan menggunakan metode K-Means adalah sebagai berikut:
+
+Cluster 3 memiliki rata-rata proporsi *Love* sebesar 90,8%, sehingga dapat diinterpretasikan sebagai kelompok postingan yang memperoleh reaksi emosional sangat positif dari audiens.
+
+Cluster 2 dominasi reaksi *Wow* sebesar 65.8% dan *Love* sebesar 31.2%. Cluster ini menggambarkan postingan yang tidak hanya disukai tetapi juga mampu menimbulkan rasa terkejut/kagum pada audiens.
+
+Sementara itu, Cluster 1 dominasi reaksi *Sad* sebesar 76,0%. Hal ini menunjukkan adanya sejumlah postingan yang memunculkan empati, simpati, atau perasaan sedih dari audiens.
+
+Cluster 4 didominasi oleh reaksi *Haha* sebesar 77.4%. Kelompok ini menunjukkan postingan yang mengundang tawa dan berhasil menarik perhatian pengguna melalui unsur humor atau penyajian yang menghibur.
+
+Sedangkan Cluster 5, dominasi reaksi *Haha* sebesar 63,4% dan *Angry* sebesar 14,9%. Cluster ini mengindikasikan postingan yang cenderung mengandung unsur humor, sindiran, atau bahkan memicu respons kontroversial.
+
+```{r}
+# Profiling Karakteristik Klaster Emosi Berdasarkan K-Medoid
+profil_emosi_kmed <- data_final %>%
+  # Mengelompokkan data berdasarkan Cluster
+  group_by(Cluster_KMedoid) %>%
+  
+  # Hitung rata-rata persentase kelima variabel emosi
+  summarise(
+    avg_love  = mean(pct_love),
+    avg_wow   = mean(pct_wow),
+    avg_haha  = mean(pct_haha),
+    avg_sad   = mean(pct_sad),
+    avg_angry = mean(pct_angry),
+    
+    # Menghitung berapa banyak postingan di setiap cluster
+    Jumlah_Postingan = n() 
+  )
+
+# Menampilkan Hasil Cluster K-Medoids
+print(profil_emosi_kmed)
+```
+
+Berdasarkan hasil tersebut karakteristik setiap cluster yang dihasilkan menggunakan metode K-Medoids adalah sebagai berikut:
+
+Cluster 3 dominasi reaksi *Love* sebesar 94.5%. Hasil ini konsisten dengan hasil pada K-Means bahwa sebagian besar postingan memperoleh respons emosional positif.
+
+Cluster 1 didominasi oleh kombinasi reaksi *Wow* (56,3%) dan *Love* (40,2%). Kelompok ini menunjukkan postingan yang mampu menarik perhatian sekaligus mendapatkan apresiasi positif dari audiens. Sedangkan Cluster 4 dominasi reaksi *Sad* sebesar 79%, yang menggambarkan postingan memicu respons empati dan simpati dari pengguna.
+
+Sementara itu, Cluster 2 terdiri atas kombinasi reaksi *Love* sebesar 44,4% dan *Haha* sebesar 40.5%, menunjukkan postingan yang dianggap menarik sekaligus menghibur oleh audiens.
+
+# **Analisis Perbandingan**
+
+Perbandingan dilakukan untuk melihat seberapa mirip hasil yang didapat dari kedua metode ini. Perbandingan kedua metode dilakukan melalui tabel kontingensi dan nilai Rand Index. Nilai yang mendekati 1 menunjukkan tingkat kesesuaian yang sangat tinggi antara hasil segmentasi K-Means dan K-Medoid.
+
+```{r perbandingan}
+# Melihat kecocokan clustering antar kedua metode dengan Matriks Kontingensi
+cat("--- Matriks Kesesuaian K-Means vs K-Medoid ---")
+tabel_kesesuaian <- table(data_final$Cluster_KMeans, data_final$Cluster_KMedoid)
+print(tabel_kesesuaian)
+
+# Menghitung Rand Index (RI) untuk mengukur kemiripan kedua hasil metode
+cluster_kmeans <- as.integer(data_final$Cluster_KMeans)
+cluster_kmed <- as.integer(data_final$Cluster_KMedoid)
+
+# Menghitung Rand Index (RI)
+ri_score <- extCriteria(cluster_kmeans, cluster_kmed, "Rand")
+cat("Rand Index (RI):", ri_score$rand, "\n")
+```
+
+Matriks kontingensi menunjukkan distribusi anggota cluster K-Means terhadap cluster K-Medoid. Berdasarkan matriks kontingensi, terlihat bahwa sebagaian besar Cluster 3 (1967 anggota) paad K-Means juga berada pada Cluster 3 K-Medoids. Sebagaian besar Cluster 2 (555 anggota) paad K-Means berada pada Cluster 1 K-Medoids. Dan sebagian besar Cluster 1 (93 anggota) paad K-Means berada pada Cluster 2 K-Medoids. Sementara itu, seluruh anggota Cluster 4 (93 anggota) pada K-Means berada pada Cluster 4 K-Medoids. Dan sebagian besar anggota Cluster 5 (17 anggota) pada K-Means berada pada Cluster 1 K-Medoids.
+
+Dari Hasil evaluasi menggunakan Rank Indeks didapat nilai sebesar 0.8216142. Hal ini menunjukkan bahawa cluster yang dihasilkan oleh K-Means hampir mirip dengan cluster yang dihasilkan oleh K-Medoids.
+
+```{r}
+# Analisis Distribusi Tipe Konten pada K-Means Clustering
+cat("--- Distribusi Tipe Konten pada K-Means Clustering ---")
+tabel_konten_kmeans <- table(data_final$Cluster_KMeans, data_final$status_type)
+print(tabel_konten_kmeans)
+
+# Analisis Distribusi Tipe Konten pada K-Medoid Clustering
+cat("--- Distribusi Tipe Konten pada K-Medoid Clustering ---")
+tabel_konten_kmed <- table(data_final$Cluster_KMedoid, data_final$status_type)
+print(tabel_konten_kmed)
+```
+
+Hasil analisis dari kedua metode menunjukkan bahwa tipe konten video dan photo mendominasi hampir seluruh cluster, sedangkan tipe konten link dan status memiliki jumlah yang relatif lebih sedikit. Pada cluster yang didominasi reaksi *Love*, sebagian besar postingan berupa video. Sementara cluster yang didominasi oleh reaksi *Wow*, *Haha*, *Sad*, dan *Angry* sebagian besar postingan berupa photo.
+
+# **Visualisasi Perbandingan**
+
+Untuk mengevaluasi konsistensi hasil pengelompokan secara kualitatif, dilakukan perbandingan visual antara metode K-Means ($k=5$) dan Simple K-Medoids ($k = 4$) dengan menggunakan *scatter plot*.
+
+```{r visualisasi perbandingan}
+# Visualisasi Claster Hasil K-Means (Menggunakan 2 Variabel Emosi Dominan)
+plot_kmeans <- ggplot(data_final, aes(x = pct_love, y = pct_wow, color = Cluster_KMeans)) +
+  geom_point(size = 2, alpha = 0.6) +
+  labs(title = "K-Means Clustering (k = 5)", x = "Proporsi Love", y = "Proporsi Wow") +
+  theme_minimal()
+
+# Visualisasi Claster Hasil K-Medoid (Menggunakan 2 Variabel Emosi Dominan)
+plot_model <- ggplot(data_final, aes(x = pct_love, y = pct_wow, color = Cluster_KMedoid)) +
+  geom_point(size = 2, alpha = 0.6) +
+  labs(title = "Simple K-Medoid Clustering (k = 4)", x = "Proporsi Love", y = "Proporsi Wow") +
+  theme_minimal()
+
+# Menampilkan Kedua Plot
+grid.arrange(
+  plot_kmeans,
+  plot_model,
+  ncol = 2
+)
+```
+
+Berdasarkan *scatter plot* pada dua reaksi emosi tersebut, terlihat bahawa K-Means Clustering ($k = 5$) menghasilkan pengelompokan yang lebih sensitif dan terpecah. Area atas didominasi oleh Cluster 2 (Proporsi Wow tinggi), area kanan bawah oleh Klaster 3 (Proporsi Love tinggi), sedangkan area kiri bawah (proporsi emosi rendah) dipecah secara detail menjadi 3 bagian (Cluster 1, 4, dan 5). Semenetara itu, Simple K-Medoids ($k = 4$) menghasilkan pengelompokan yang lebih ringkas dan padat. Area atas dan diagonal digabung menjadi Cluster 1 (Wow dominan), area kanan bawah konsisten diisi Cluster 3 (Love dominan), sedangkan area padat di kiri bawah hanya dibagi menjadi 2 kelompok saja (Cluster 2 dan 4).
