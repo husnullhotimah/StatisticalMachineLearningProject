@@ -57,20 +57,20 @@ Reaksi *Like* sengaja dipisahkan dari analisis karena bersifat *passive engageme
 
 | Cluster | Emosi Dominan | Proporsi | Jumlah Postingan | Interpretasi |
 |---|---|---|---|---|
-| 1 | Sad | 76,0% | 102 (3,30%) | Konten memunculkan empati/simpati |
-| 2 | Wow + Love | 65,8% + 31,2% | 580 (18,75%) | Konten mengagumkan dan disukai |
-| 3 | Love | 90,8% | 2302 (74,40%) | Konten sangat positif |
-| 4 | Haha | 77,4% | 87 (2,81%) | Konten humor/menghibur |
-| 5 | Angry + Haha | 68,0% + 6,8% | 23 (0,74%) | Konten kontroversial/provokatif |
+| 1 | Sad | 76.0% | 102 (3.30%) | Konten memunculkan empati/simpati |
+| 2 | Wow + Love | 65.8% + 31.2% | 580 (18.75%) | Konten mengagumkan dan disukai |
+| 3 | Love | 90.8% | 2302 (74.40%) | Konten sangat positif |
+| 4 | Haha | 77.4% | 87 (2.81%) | Konten humor/menghibur |
+| 5 | Angry + Haha | 68.0% + 6.8% | 23 (0.74%) | Konten kontroversial/provokatif |
 
 ### Simple K-Medoids (k = 4)
 
 | Cluster | Emosi Dominan | Proporsi | Jumlah Postingan | Interpretasi |
 |---|---|---|---|---|
-| 1 | Wow + Love | 56,3% + 40,2% | 770 (24,89%) | Konten mengejutkan sekaligus positif |
-| 2 | Sad | 79,0% | 94 (3,04%) | Konten empatik |
-| 3 | Love | 94,5% | 1972 (63,74%) | Konten sangat positif |
-| 4 | Love + Haha | 44,4% + 40,5% | 258 (8,34%) | Konten positif dan menghibur |
+| 1 | Wow + Love | 56.3% + 40.2% | 770 (24.89%) | Konten mengejutkan sekaligus positif |
+| 2 | Sad | 79.0% | 94 (3.04%) | Konten empatik |
+| 3 | Love | 94.5% | 1972 (63.74%) | Konten sangat positif |
+| 4 | Love + Haha | 44.4% + 40.5% | 258 (8.34%) | Konten positif dan menghibur |
 
 ---
 
@@ -105,7 +105,7 @@ Reaksi *Like* sengaja dipisahkan dari analisis karena bersifat *passive engageme
 
 - Sebagian besar postingan (>60%) memperoleh dominasi reaksi **Love**, mengindikasikan bahwa konten live selling di Thailand umumnya diterima secara positif oleh audiens.
 - Konten **video** cenderung mendapatkan lebih banyak reaksi Love, sedangkan konten **photo** lebih bervariasi dalam memunculkan respons emosional lainnya.
-- Korelasi negatif terkuat ditemukan antara reaksi **Love** dan **Wow** (r = -0,76), menunjukkan bahwa keduanya jarang muncul bersamaan secara dominan.
+- Korelasi negatif terkuat ditemukan antara reaksi **Love** dan **Wow** (r = -0.76), menunjukkan bahwa keduanya jarang muncul bersamaan secara dominan.
 - K-Means lebih unggul dalam nilai Silhouette, namun SKM lebih robust terhadap distribusi data yang sangat skewed.
 
 ---
